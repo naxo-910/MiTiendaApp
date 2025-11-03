@@ -16,6 +16,13 @@ class MainActivity : AppCompatActivity() {
 
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        val sharedPrefs = getSharedPreferences("MiTiendaPrefs", MODE_PRIVATE)
+        val isLoggedIn = sharedPrefs.getBoolean("isLoggedIn", false)
+        if (isLoggedIn) {
+            val intent = Intent(this, HomeActivity::class.java)
+            startActivity(intent)
+            finish()
+        }
 
         // --- LÓGICA DE VALIDACIÓN MEJORADA (IE 2.2.1) ---
         binding.buttonLogin.setOnClickListener {
@@ -49,6 +56,11 @@ class MainActivity : AppCompatActivity() {
             else {
                 // ¡ÉXITO! Todos los campos son válidos.
                 // Mostramos un mensaje temporal de éxito
+                val sharedPrefs = getSharedPreferences("MiTiendaPrefs", MODE_PRIVATE)
+                val editor = sharedPrefs.edit()
+                editor.putBoolean("isLoggedIn", true)
+                editor.apply()
+
                 val intent = Intent(this, HomeActivity::class.java)
                 startActivity(intent)
             }
