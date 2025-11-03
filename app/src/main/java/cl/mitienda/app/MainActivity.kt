@@ -4,6 +4,8 @@ import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import cl.mitienda.app.databinding.ActivityMainBinding
 import android.util.Patterns
+import android.widget.Toast
+import android.content.Intent
 
 class MainActivity : AppCompatActivity() {
 
@@ -46,8 +48,9 @@ class MainActivity : AppCompatActivity() {
 
             else {
                 // ¡ÉXITO! Todos los campos son válidos.
-                // Por ahora, solo mostramos un mensaje temporal.
-                // (Añadiremos esto en el siguiente paso)
+                // Mostramos un mensaje temporal de éxito
+                val intent = Intent(this, HomeActivity::class.java)
+                startActivity(intent)
             }
         }
     }
