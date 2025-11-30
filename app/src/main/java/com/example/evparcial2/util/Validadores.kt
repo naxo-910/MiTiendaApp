@@ -13,21 +13,21 @@ object Validadores {
     }
 
     fun validarPrecio(precio: String): String? {
-        // .toDoubleOrNull() ya maneja los espacios, así que aquí no es necesario .trim()
+        val precioDouble = precio.toDoubleOrNull()
         return when {
             precio.isBlank() -> "El precio es obligatorio"
-            precio.toDoubleOrNull() == null -> "Precio inválido"
-            precio.toDouble() < Constantes.PRECIO_MINIMO -> "El precio debe ser mayor a 0"
+            precioDouble == null -> "Precio inválido"
+            precioDouble < Constantes.PRECIO_MINIMO -> "El precio debe ser mayor a 0"
             else -> null
         }
     }
 
     fun validarStock(stock: String): String? {
-        // .toIntOrNull() ya maneja los espacios
+        val stockInt = stock.toIntOrNull()
         return when {
             stock.isBlank() -> "El stock es obligatorio"
-            stock.toIntOrNull() == null -> "Stock inválido"
-            stock.toInt() < Constantes.STOCK_MINIMO -> "El stock no puede ser negativo"
+            stockInt == null -> "Stock inválido"
+            stockInt < Constantes.STOCK_MINIMO -> "El stock no puede ser negativo"
             else -> null
         }
     }
@@ -38,6 +38,26 @@ object Validadores {
         return when {
             emailLimpio.isBlank() -> "El email es obligatorio"
             !regex.matches(emailLimpio) -> "Email inválido" // <-- Comprobamos el email limpio
+            else -> null
+        }
+    }
+    
+    fun validarPassword(password: String): String? {
+        val passwordLimpio = password.trim()
+        return when {
+            passwordLimpio.isBlank() -> "La contraseña es obligatoria"
+            passwordLimpio.length < 6 -> "La contraseña debe tener al menos 6 caracteres"
+            passwordLimpio.length > 50 -> "La contraseña no puede exceder 50 caracteres"
+            else -> null
+        }
+    }
+
+    fun validarDescripcion(descripcion: String): String? {
+        val descripcionLimpia = descripcion.trim()
+        return when {
+            descripcionLimpia.isBlank() -> "La descripción es obligatoria"
+            descripcionLimpia.length < 10 -> "La descripción debe tener al menos 10 caracteres"
+            descripcionLimpia.length > 500 -> "La descripción no puede exceder 500 caracteres"
             else -> null
         }
     }

@@ -1,0 +1,208 @@
+package com.example.evparcial2.domain.viewmodels
+
+import androidx.arch.core.executor.testing.InstantTaskExecutorRule
+import com.example.evparcial2.data.model.Usuario
+import com.example.evparcial2.data.repository.BasicRepositories
+import com.google.common.truth.Truth.assertThat
+import io.mockk.coEvery
+import io.mockk.mockk
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runTest
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+
+@ExperimentalCoroutinesApi
+class ViewModelUsuariosTest {
+
+    @get:Rule
+    val instantTaskExecutorRule = InstantTaskExecutorRule()
+
+    private lateinit var viewModel: ViewModelUsuarios
+    private lateinit var mockRepository: BasicRepositories
+
+    private val usuarioDemo = Usuario(
+        id = 1L,
+        nombre = "Test User",
+        email = "test@example.com",
+        rol = "usuario"
+    )
+
+    @Before
+    fun setUp() {
+        mockRepository = mockk()
+        viewModel = ViewModelUsuarios(mockRepository)
+    }
+
+    @Test
+    fun `estado inicial de formulario login es correcto`() = runTest {
+        val estado = viewModel.estadoFormularioLogin.first()
+        
+        assertThat(estado.correoElectronico).isEmpty()
+        assertThat(estado.contrasenaUsuario).isEmpty()
+        assertThat(estado.mensajeErrorCorreo).isNull()
+        assertThat(estado.mensajeErrorContrasena).isNull()
+        assertThat(estado.procesandoAutenticacion).isFalse()
+    }
+
+    @Test
+    fun `estado inicial de formulario registro es correcto`() = runTest {
+        val estado = viewModel.estadoFormularioRegistro.first()
+        
+        assertThat(estado.nombreCompleto).isEmpty()
+        assertThat(estado.correoElectronico).isEmpty()
+        assertThat(estado.contrasenaUsuario).isEmpty()
+        assertThat(estado.confirmacionContrasena).isEmpty()
+        assertThat(estado.procesandoRegistro).isFalse()
+    }
+
+    @Test
+    fun `procesar evento OnEmailChange actualiza email correctamente`() = runTest {
+        val nuevoEmail = "test@example.com"
+        
+        viewModel.procesarEventoInicioSesion(EventoLogin.OnEmailChange(nuevoEmail))
+        
+        val estado = viewModel.estadoFormularioLogin.first()
+        assertThat(estado.correoElectronico).isEqualTo(nuevoEmail)
+        assertThat(estado.mensajeErrorCorreo).isNull()
+    }
+
+    @Test
+    fun `procesar evento OnPassChange actualiza password correctamente`() = runTest {
+        val nuevaPassword = "password123"
+        
+        viewModel.procesarEventoInicioSesion(EventoLogin.OnPassChange(nuevaPassword))
+        
+        val estado = viewModel.estadoFormularioLogin.first()
+        assertThat(estado.contrasenaUsuario).isEqualTo(nuevaPassword)
+        assertThat(estado.mensajeErrorContrasena).isNull()
+    }
+
+    @Test
+    fun `procesar evento registro OnNombreChange actualiza nombre correctamente`() = runTest {
+        val nuevoNombre = "Juan Pérez"
+        
+        viewModel.procesarEventoRegistroUsuario(EventoRegistro.OnNombreChange(nuevoNombre))
+        
+        val estado = viewModel.estadoFormularioRegistro.first()
+        assertThat(estado.nombreCompleto).isEqualTo(nuevoNombre)
+        assertThat(estado.mensajeErrorNombre).isNull()
+    }
+
+    @Test
+    fun `procesar evento registro OnEmailChange actualiza email correctamente`() = runTest {
+        val nuevoEmail = "juan@example.com"
+        
+        viewModel.procesarEventoRegistroUsuario(EventoRegistro.OnEmailChange(nuevoEmail))
+        
+        val estado = viewModel.estadoFormularioRegistro.first()
+        assertThat(estado.correoElectronico).isEqualTo(nuevoEmail)
+        assertThat(estado.mensajeErrorCorreo).isNull()
+    }
+
+    @Test
+    fun `procesar evento registro OnPassChange actualiza password correctamente`() = runTest {
+        val nuevaPassword = "mypassword"
+        
+        viewModel.procesarEventoRegistroUsuario(EventoRegistro.OnPassChange(nuevaPassword))
+        
+        val estado = viewModel.estadoFormularioRegistro.first()
+        assertThat(estado.contrasenaUsuario).isEqualTo(nuevaPassword)
+        assertThat(estado.mensajeErrorContrasena).isNull()
+    }
+
+    @Test
+    fun `procesar evento registro OnPassConfirmChange actualiza confirmacion correctamente`() = runTest {
+        val confirmacion = "mypassword"
+        
+        viewModel.procesarEventoRegistroUsuario(EventoRegistro.OnPassConfirmChange(confirmacion))
+        
+        val estado = viewModel.estadoFormularioRegistro.first()
+        assertThat(estado.confirmacionContrasena).isEqualTo(confirmacion)
+        assertThat(estado.mensajeErrorConfirmacion).isNull()
+    }
+
+    @Test
+    fun `login exitoso autentica usuario correctamente`() = runTest {
+        // Arrange
+        coEvery { mockRepository.autenticarUsuario(any(), any()) } returns usuarioDemo
+        
+        viewModel.procesarEventoInicioSesion(EventoLogin.OnEmailChange("test@example.com"))
+        viewModel.procesarEventoInicioSesion(EventoLogin.OnPassChange("ValidPassword123!"))
+        
+        // Act
+        viewModel.procesarEventoInicioSesion(EventoLogin.OnLoginClicked)
+        
+        // Assert
+        val usuarioAutenticado = viewModel.usuarioAutenticadoActual.first()
+        assertThat(usuarioAutenticado).isNotNull()
+        assertThat(usuarioAutenticado?.email).isEqualTo(usuarioDemo.email)
+    }
+
+    @Test
+    fun `usuario autenticado inicial es null`() = runTest {
+        val usuario = viewModel.usuarioAutenticadoActual.first()
+        assertThat(usuario).isNull()
+    }
+
+    @Test
+    fun `eventos sealed classes tienen propiedades correctas`() {
+        // Eventos de Login
+        val emailEvent = EventoLogin.OnEmailChange("test@email.com")
+        assertThat(emailEvent.email).isEqualTo("test@email.com")
+        
+        val passEvent = EventoLogin.OnPassChange("password")
+        assertThat(passEvent.pass).isEqualTo("password")
+        
+        val loginClick = EventoLogin.OnLoginClicked
+        assertThat(loginClick).isEqualTo(EventoLogin.OnLoginClicked)
+        
+        // Eventos de Registro
+        val nombreEvent = EventoRegistro.OnNombreChange("Juan")
+        assertThat(nombreEvent.nombre).isEqualTo("Juan")
+        
+        val registroEmailEvent = EventoRegistro.OnEmailChange("juan@test.com")
+        assertThat(registroEmailEvent.email).isEqualTo("juan@test.com")
+        
+        val registroClick = EventoRegistro.OnRegistroClicked
+        assertThat(registroClick).isEqualTo(EventoRegistro.OnRegistroClicked)
+    }
+
+    @Test
+    fun `eventos de navegacion son correctos`() {
+        val navegarInicio = EventoDeNavegacion.NavegarAInicio
+        val navegarLogin = EventoDeNavegacion.NavegarALogin
+        val navegarProductos = EventoDeNavegacion.NavegarAProductos
+        
+        assertThat(navegarInicio).isEqualTo(EventoDeNavegacion.NavegarAInicio)
+        assertThat(navegarLogin).isEqualTo(EventoDeNavegacion.NavegarALogin)
+        assertThat(navegarProductos).isEqualTo(EventoDeNavegacion.NavegarAProductos)
+    }
+
+    @Test
+    fun `EstadoInicioSesion tiene valores por defecto correctos`() {
+        val estado = EstadoInicioSesion()
+        
+        assertThat(estado.correoElectronico).isEmpty()
+        assertThat(estado.contrasenaUsuario).isEmpty()
+        assertThat(estado.mensajeErrorCorreo).isNull()
+        assertThat(estado.mensajeErrorContrasena).isNull()
+        assertThat(estado.procesandoAutenticacion).isFalse()
+    }
+
+    @Test
+    fun `EstadoRegistroUsuario tiene valores por defecto correctos`() {
+        val estado = EstadoRegistroUsuario()
+        
+        assertThat(estado.nombreCompleto).isEmpty()
+        assertThat(estado.correoElectronico).isEmpty()
+        assertThat(estado.contrasenaUsuario).isEmpty()
+        assertThat(estado.confirmacionContrasena).isEmpty()
+        assertThat(estado.mensajeErrorNombre).isNull()
+        assertThat(estado.mensajeErrorCorreo).isNull()
+        assertThat(estado.mensajeErrorContrasena).isNull()
+        assertThat(estado.mensajeErrorConfirmacion).isNull()
+        assertThat(estado.procesandoRegistro).isFalse()
+    }
+}

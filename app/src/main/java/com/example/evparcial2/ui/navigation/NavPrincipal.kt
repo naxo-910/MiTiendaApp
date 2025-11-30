@@ -11,24 +11,27 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.example.evparcial2.domain.viewmodels.ViewModelProductos
-import com.example.evparcial2.domain.viewmodels.ViewModelUsuarios
-import com.example.evparcial2.domain.viewmodels.CarritoViewModel
-import com.example.evparcial2.domain.viewmodels.ViewModelPedidos
-import com.example.evparcial2.domain.viewmodels.ViewModelChat
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.evparcial2.domain.viewmodels.*
 import com.example.evparcial2.domain.viewmodels.ChatEvent
+import com.example.evparcial2.data.model.Usuario
+import com.example.evparcial2.ui.components.reviews.SeccionReviews
 import com.example.evparcial2.ui.pantallas.*
+import com.tienda.ui.screens.PantallaConvertirMonedas
+import com.tienda.viewmodels.CurrencyViewModel
 
 @Composable
 fun NavPrincipal(
     navController: NavHostController = rememberNavController(),
-    vm: ViewModelUsuarios = viewModel(),
-    vmProductos: ViewModelProductos = viewModel(),
+    vm: ViewModelUsuarios = hiltViewModel(),
+    vmProductos: ViewModelProductos = hiltViewModel(),
     carritoViewModel: CarritoViewModel = viewModel(),
-    vmPedidos: ViewModelPedidos = viewModel(),
-    vmChat: ViewModelChat = viewModel()
+    vmPedidos: ViewModelPedidos = hiltViewModel(),
+    vmChat: ViewModelChat = hiltViewModel(),
+    @Suppress("UNUSED_PARAMETER") vmReviews: ViewModelReviews = hiltViewModel(),
+    currencyViewModel: CurrencyViewModel = hiltViewModel()
 ) {
-    val usuarioActual by vm.usuarioActual.collectAsState()
+    val usuarioActual by vm.usuarioAutenticadoActual.collectAsState()
 
     // Navegación libre - no forzar login automático
 
@@ -39,28 +42,28 @@ fun NavPrincipal(
         // ... (login, registro, inicio se mantienen igual) ...
 
         composable("login") {
-            PantallaLogin(
-                vm = vm,
-                onLoginExitoso = {
+            PantallaInicioSesion(
+                gestorUsuarios = vm,
+                alIniciarSesionExitoso = {
                     navController.navigate("inicio") {
                         popUpTo("login") { inclusive = true }
                     }
                 },
-                onIrARegistro = {
+                alNavegarÁRegistro = {
                     navController.navigate("registro")
                 }
             )
         }
 
         composable("registro") {
-            PantallaRegistro(
-                vm = vm,
-                onRegistroExitoso = {
+            PantallaCrearCuenta(
+                gestorUsuarios = vm,
+                alCrearCuentaExitoso = {
                     navController.navigate("login") {
                         popUpTo("registro") { inclusive = true }
                     }
                 },
-                onVolver = {
+                alVolver = {
                     navController.popBackStack()
                 }
             )
@@ -77,7 +80,8 @@ fun NavPrincipal(
                     irPedidos = { navController.navigate("pedidos") },
                     irGestion = { navController.navigate("gestion") },
                     irPerfil = { navController.navigate("perfil") },
-                    irChats = { navController.navigate("chats") }
+                    irChats = { navController.navigate("chats") },
+                    irCurrency = { navController.navigate("currency_converter") }
                 )
             }
         }
@@ -85,9 +89,9 @@ fun NavPrincipal(
         // ... (productos, gestion, producto_form se mantienen igual) ...
 
         composable("productos") {
-            PantallaProductos(
-                vm = vmProductos,
-                carritoViewModel = carritoViewModel,
+            PantallaAlojamientos(
+                gestorProductos = vmProductos,
+                gestorCarrito = carritoViewModel,
                 esAdmin = usuarioActual?.rol == "admin",
                 usuario = usuarioActual,
                 onAgregarProducto = { navController.navigate("producto_form") },
@@ -97,7 +101,6 @@ fun NavPrincipal(
                 onVerDetalle = { producto ->
                     navController.navigate("producto_detalle/${producto.id}")
                 },
-                onVolver = { navController.popBackStack() },
                 onIrACarrito = { 
                     if (usuarioActual != null) {
                         navController.navigate("carrito")
@@ -121,7 +124,7 @@ fun NavPrincipal(
             arguments = listOf(navArgument("productoId") { type = NavType.LongType })
         ) { backStackEntry ->
             val id = backStackEntry.arguments?.getLong("productoId")
-            val producto = vmProductos.productos.collectAsState().value.find { it.id == id }
+            val producto = vmProductos.listaAlojamientosCompleta.collectAsState().value.find { it.id == id }
             val usuario = usuarioActual // Variable local para smart cast
             if (producto != null && usuario != null) {
                 PantallaDetalle(
@@ -137,11 +140,10 @@ fun NavPrincipal(
                     onIniciarChat = {
                         // Navegar al chat (asumiendo que el admin tiene ID 1)
                         val adminId = 1L
-                        vmChat.onEvent(ChatEvent.IniciarChat(
-                            productoId = producto.id,
-                            nombreProducto = producto.nombre,
-                            usuario = usuario,
-                            otroUsuarioId = adminId
+                        vmChat.onEvent(ChatEvent.CreateChat(
+                            usuario1 = usuario,
+                            usuario2 = Usuario(id = adminId, nombre = "Admin", email = "admin@hostal.com", rol = "admin"),
+                            productoId = producto.id
                         ))
                         navController.navigate("chat/${producto.id}/${producto.nombre}")
                     }
@@ -150,9 +152,9 @@ fun NavPrincipal(
         }
 
         composable("gestion") {
-            PantallaProductos(
-                vm = vmProductos,
-                carritoViewModel = carritoViewModel,
+            PantallaAlojamientos(
+                gestorProductos = vmProductos,
+                gestorCarrito = carritoViewModel,
                 esAdmin = true,
                 onAgregarProducto = { navController.navigate("producto_form") },
                 onEditarProducto = { producto ->
@@ -161,17 +163,18 @@ fun NavPrincipal(
                 onVerDetalle = { _ ->
                     // navController.navigate("producto_detalle/${producto.id}")
                 },
-                onVolver = { navController.popBackStack() },
-                onIrACarrito = { /* No hay carrito en gestión */ }
+                onIrACarrito = { /* No hay carrito en gestión */ },
+                onIrALogin = { navController.navigate("login") },
+                onIrAInicio = { navController.navigate("inicio") }
             )
         }
 
         composable("producto_form") {
-            PantallaFormProducto(
-                vm = vmProductos,
-                productoId = null,
-                onVolver = { navController.popBackStack() },
-                onGuardar = { navController.popBackStack() }
+            PantallaFormularioAlojamiento(
+                gestorAlojamientos = vmProductos,
+                idAlojamientoAEditar = null,
+                alVolver = { navController.popBackStack() },
+                alGuardarExitosamente = { navController.popBackStack() }
             )
         }
 
@@ -180,11 +183,11 @@ fun NavPrincipal(
             arguments = listOf(navArgument("productoId") { type = NavType.LongType })
         ) { backStackEntry ->
             val id = backStackEntry.arguments?.getLong("productoId")
-            PantallaFormProducto(
-                vm = vmProductos,
-                productoId = id,
-                onVolver = { navController.popBackStack() },
-                onGuardar = { navController.popBackStack() }
+            PantallaFormularioAlojamiento(
+                gestorAlojamientos = vmProductos,
+                idAlojamientoAEditar = id,
+                alVolver = { navController.popBackStack() },
+                alGuardarExitosamente = { navController.popBackStack() }
             )
         }
 
@@ -196,7 +199,7 @@ fun NavPrincipal(
                 onConfirmar = {
                     // --- ¡¡ESTA ES LA NUEVA LÓGICA!! ---
                     // 1. Obtener el usuario
-                    val usuario = vm.usuarioActual.value
+                    val usuario = vm.usuarioAutenticadoActual.value
                     // 2. Obtener los items del carrito
                     val items = carritoViewModel.items.value.values.toList()
 
@@ -231,7 +234,7 @@ fun NavPrincipal(
                     usuario = usuario,
                     onVolver = { navController.popBackStack() },
                     onCerrarSesion = {
-                        vm.cerrarSesion()
+                        vm.cerrarSesionUsuarioActual()
                     }
                 )
             }
@@ -239,38 +242,28 @@ fun NavPrincipal(
 
         // Pantallas de Chat
         composable("chats") {
-            val usuario = usuarioActual
-            if (usuario != null) {
-                PantallaListaChats(
-                    usuario = usuario,
-                    onVolver = { navController.popBackStack() },
-                    onAbrirChat = { chatId ->
-                        navController.navigate("chat_detalle/$chatId")
-                    },
-                    viewModelChat = vmChat
-                )
-            }
+            PantallaListaChats(
+                vmChat = vmChat,
+                onNavigateToChat = { chatId ->
+                    navController.navigate("chat_detalle/$chatId")
+                },
+                onVolver = { navController.popBackStack() }
+            )
         }
 
         composable(
-            route = "chat/{productoId}/{nombreProducto}",
-            arguments = listOf(
-                navArgument("productoId") { type = NavType.LongType },
-                navArgument("nombreProducto") { type = NavType.StringType }
-            )
+            route = "chat/{productoId}",
+            arguments = listOf(navArgument("productoId") { type = NavType.LongType })
         ) { backStackEntry ->
-            val nombreProducto = backStackEntry.arguments?.getString("nombreProducto") ?: ""
-            val chatUiState by vmChat.chatUiState.collectAsState()
-            
+            val productoId = backStackEntry.arguments?.getLong("productoId") ?: 0L
             val usuario = usuarioActual
-            if (chatUiState.chatId != null && usuario != null) {
-                PantallaChat(
-                    chatId = chatUiState.chatId!!,
-                    nombreProducto = nombreProducto,
-                    usuario = usuario,
-                    onVolver = { navController.popBackStack() },
-                    viewModelChat = vmChat
-                )
+            
+            if (usuario != null) {
+                // Crear un nuevo chat para el producto
+                LaunchedEffect(productoId) {
+                    // Aquí crearías el chat, pero por ahora navega a un chat demo
+                    navController.navigate("chat_detalle/1")
+                }
             }
         }
 
@@ -283,12 +276,19 @@ fun NavPrincipal(
             if (usuario != null) {
                 PantallaChat(
                     chatId = chatId,
-                    nombreProducto = "Chat",
-                    usuario = usuario,
-                    onVolver = { navController.popBackStack() },
-                    viewModelChat = vmChat
+                    vmChat = vmChat,
+                    usuarioActual = usuario,
+                    onVolver = { navController.popBackStack() }
                 )
             }
+        }
+        
+        // Pantalla de Conversión de Monedas
+        composable("currency_converter") {
+            PantallaConvertirMonedas(
+                alVolver = { navController.popBackStack() },
+                gestorMonedas = currencyViewModel
+            )
         }
     }
 }

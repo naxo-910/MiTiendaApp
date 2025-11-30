@@ -19,7 +19,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.evparcial2.data.model.Producto
@@ -36,14 +36,14 @@ fun PlantillaProducto(
     onEliminarProducto: () -> Unit,
     modifier: Modifier = Modifier,
     usuarioLogueado: Boolean = true,
-    viewModelReviews: ViewModelReviews = viewModel()
+    viewModelReviews: ViewModelReviews = hiltViewModel()
 ) {
     var expanded by remember { mutableStateOf(false) }
     val reviewsUiState by viewModelReviews.uiState.collectAsState()
     
     // Cargar calificación cuando se crea el componente
     LaunchedEffect(producto.id) {
-        viewModelReviews.onEvent(ReviewEvent.CargarReviews(producto.id))
+        viewModelReviews.onEvent(ReviewEvent.LoadReviewsForProduct(producto.id))
     }
 
     Card(

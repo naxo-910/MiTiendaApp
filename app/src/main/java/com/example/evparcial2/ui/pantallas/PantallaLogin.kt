@@ -26,20 +26,20 @@ import com.example.evparcial2.ui.components.common.CampoTexto
 import com.example.evparcial2.domain.viewmodels.EventoDeNavegacion
 
 @Composable
-fun PantallaLogin(
-    vm: ViewModelUsuarios,
-    onLoginExitoso: () -> Unit,
-    onIrARegistro: () -> Unit // <-- NUEVO PARÁMETRO
+fun PantallaInicioSesion(
+    gestorUsuarios: ViewModelUsuarios,
+    alIniciarSesionExitoso: () -> Unit,
+    alNavegarÁRegistro: () -> Unit
 ) {
-    val uiState by vm.uiState.collectAsState()
+    val estadoInicioSesion by gestorUsuarios.estadoFormularioLogin.collectAsState()
 
     LaunchedEffect(key1 = Unit) {
-        vm.eventoNavegacion.collectLatest { evento ->
+        gestorUsuarios.notificacionNavegacion.collectLatest { evento ->
             when (evento) {
                 is EventoDeNavegacion.NavegarAInicio -> {
-                    onLoginExitoso()
+                    alIniciarSesionExitoso()
                 }
-                else -> { /* No hacer nada */ }
+                else -> { /* No realizar acción */ }
             }
         }
     }
@@ -90,7 +90,7 @@ fun PantallaLogin(
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        "🏨 HostelFinder",
+                        "🏨 Hostal Connect",
                         style = MaterialTheme.typography.headlineLarge.copy(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
@@ -98,7 +98,7 @@ fun PantallaLogin(
                         textAlign = TextAlign.Center
                     )
                     Text(
-                        "Encuentra tu alojamiento perfecto",
+                        "Tu puerta de entrada a experiencias únicas de hospedaje",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
@@ -131,16 +131,16 @@ fun PantallaLogin(
                         modifier = Modifier.padding(bottom = 24.dp)
                     )
                     
-                    // Campos de entrada modernos
+                    // Campos de entrada con diseño moderno
                     CampoTexto(
-                        valor = uiState.email,
-                        alCambiar = { vm.onLoginEvent(EventoLogin.OnEmailChange(it)) },
-                        etiqueta = "Email"
+                        valor = estadoInicioSesion.correoElectronico,
+                        alCambiar = { gestorUsuarios.procesarEventoInicioSesion(EventoLogin.OnEmailChange(it)) },
+                        etiqueta = "Correo Electrónico"
                     )
-                    val emailError = uiState.emailError
-                    if (emailError != null) {
+                    val errorCorreo = estadoInicioSesion.mensajeErrorCorreo
+                    if (errorCorreo != null) {
                         Text(
-                            text = emailError,
+                            text = errorCorreo,
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier
@@ -152,15 +152,15 @@ fun PantallaLogin(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     CampoTexto(
-                        valor = uiState.pass,
-                        alCambiar = { vm.onLoginEvent(EventoLogin.OnPassChange(it)) },
+                        valor = estadoInicioSesion.contrasenaUsuario,
+                        alCambiar = { gestorUsuarios.procesarEventoInicioSesion(EventoLogin.OnPassChange(it)) },
                         etiqueta = "Contraseña",
                         tipoTeclado = KeyboardType.Password
                     )
-                    val passError = uiState.passError
-                    if (passError != null) {
+                    val errorContrasena = estadoInicioSesion.mensajeErrorContrasena
+                    if (errorContrasena != null) {
                         Text(
-                            text = passError,
+                            text = errorContrasena,
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier
@@ -171,10 +171,10 @@ fun PantallaLogin(
 
                     Spacer(modifier = Modifier.height(32.dp))
 
-                    // Botón principal mejorado
+                    // Botón principal con diseño atractivo
                     Button(
                         onClick = {
-                            vm.onLoginEvent(EventoLogin.OnLoginClicked)
+                            gestorUsuarios.procesarEventoInicioSesion(EventoLogin.OnLoginClicked)
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -190,7 +190,7 @@ fun PantallaLogin(
                             modifier = Modifier.padding(end = 8.dp)
                         )
                         Text(
-                            "Entrar",
+                            "Iniciar Sesión",
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.SemiBold
                             )
@@ -199,9 +199,9 @@ fun PantallaLogin(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Botón de registro mejorado
+                    // Botón de registro con diseño elegante
                     OutlinedButton(
-                        onClick = onIrARegistro,
+                        onClick = alNavegarÁRegistro,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(56.dp),
@@ -216,7 +216,7 @@ fun PantallaLogin(
                             modifier = Modifier.padding(end = 8.dp)
                         )
                         Text(
-                            "¿No tienes cuenta? Regístrate",
+                            "¿Nuevo aquí? Crear cuenta",
                             style = MaterialTheme.typography.titleMedium
                         )
                     }

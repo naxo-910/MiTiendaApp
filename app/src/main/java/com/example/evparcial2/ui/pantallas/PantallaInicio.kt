@@ -39,7 +39,8 @@ fun PantallaInicio(
     irPedidos: () -> Unit,
     irGestion: () -> Unit,
     irPerfil: () -> Unit,
-    irChats: () -> Unit = {}
+    irChats: () -> Unit = {},
+    irCurrency: () -> Unit = {}
 ) {
     // Observamos los items del carrito para el contador
     val itemsCarrito by carritoViewModel.items.collectAsState()
@@ -305,6 +306,27 @@ fun PantallaInicio(
                                 modifier = Modifier.weight(1f),
                                 color = MaterialTheme.colorScheme.surfaceVariant
                             )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        // Tercera fila - Conversor de Monedas
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            // Conversor de Monedas
+                            TarjetaOpcion(
+                                titulo = "💱 Conversor",
+                                descripcion = "Convierte monedas",
+                                icono = Icons.Default.AccountBalance,
+                                onClick = irCurrency,
+                                modifier = Modifier.weight(1f),
+                                color = MaterialTheme.colorScheme.primaryContainer
+                            )
+                            
+                            // Espacio para una futura funcionalidad
+                            Box(modifier = Modifier.weight(1f))
                         }
                         
                         // Botón de Admin (si es admin)

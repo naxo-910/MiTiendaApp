@@ -1,26 +1,20 @@
 package com.example.evparcial2.domain.viewmodels
 
 import androidx.lifecycle.ViewModel
-import com.example.evparcial2.data.model.Producto // Asegúrate que la ruta a tu modelo Producto sea correcta
+import com.example.evparcial2.data.model.Producto
+import com.example.evparcial2.data.model.ItemCarrito
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-
-/**
- * Data class para representar un ítem dentro del carrito de compras.
- * @param producto El objeto Producto que se está comprando.
- * @param cantidad La cantidad de este producto en el carrito.
- */
-data class ItemCarrito(
-    val producto: Producto,
-    val cantidad: Int
-)
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 
 /**
  * ViewModel compartido que maneja el estado del carrito de compras.
  * Este ViewModel será compartido entre PantallaProductos, PantallaCarrito y PantallaInicio.
  */
-class CarritoViewModel : ViewModel() {
+@HiltViewModel
+class CarritoViewModel @Inject constructor() : ViewModel() {
 
     // Guarda los items del carrito. La "Key" es el ID del producto (String).
     private val _items = MutableStateFlow<Map<String, ItemCarrito>>(emptyMap())

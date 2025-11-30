@@ -21,14 +21,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.evparcial2.data.model.Producto
 import com.example.evparcial2.data.model.Usuario
 import com.example.evparcial2.domain.viewmodels.ReviewEvent
 import com.example.evparcial2.domain.viewmodels.ViewModelReviews
-import com.example.evparcial2.ui.components.common.SeccionReviews
+import com.example.evparcial2.ui.components.reviews.SeccionReviews
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,13 +39,13 @@ fun PantallaDetalle(
     onVolver: () -> Unit,
     onAgregarCarrito: (Producto) -> Unit,
     onIniciarChat: () -> Unit = {},
-    viewModelReviews: ViewModelReviews = viewModel()
+    viewModelReviews: ViewModelReviews = hiltViewModel()
 ) {
     val reviewsUiState by viewModelReviews.uiState.collectAsState()
     
     // Cargar reviews cuando se abre la pantalla
     LaunchedEffect(producto.id) {
-        viewModelReviews.onEvent(ReviewEvent.CargarReviews(producto.id))
+        viewModelReviews.onEvent(ReviewEvent.LoadReviewsForProduct(producto.id))
     }
     
     Box(
@@ -228,13 +228,18 @@ fun PantallaDetalle(
             SeccionReviews(
                 reviews = reviewsUiState.reviews,
                 resumenCalificacion = reviewsUiState.resumenCalificacion,
-                usuario = usuario,
-                productoId = producto.id,
                 viewModelReviews = viewModelReviews,
-                nuevaReviewCalificacion = reviewsUiState.nuevaReview.calificacion,
-                nuevaReviewComentario = reviewsUiState.nuevaReview.comentario,
-                calificacionError = reviewsUiState.nuevaReview.calificacionError,
-                comentarioError = reviewsUiState.nuevaReview.comentarioError
+                usuarioActual = usuario,
+                productoId = producto.id,
+                comentario = reviewsUiState.nuevaReview.comentario,
+                calificacion = reviewsUiState.nuevaReview.calificacion,
+                onComentarioChange = { viewModelReviews.onEvent(ReviewEvent.OnComentarioChange(it)) },
+                onCalificacionChange = { viewModelReviews.onEvent(ReviewEvent.OnCalificacionChange(it)) },
+                onSubmitReview = {
+                    if (usuario != null) {
+                        viewModelReviews.onEvent(ReviewEvent.OnSubmitReview(producto.id, usuario))
+                    }
+                }
             )
         }
     }

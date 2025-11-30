@@ -16,7 +16,7 @@ object Constantes {
     const val ESTADO_PEDIDO_ENTREGADO = "entregado"
 
     // otros?
-    const val PRECIO_MINIMO = 0.0
-    const val STOCK_MINIMO = 0
+    const val PRECIO_MINIMO = 1.0
+    const val STOCK_MINIMO = 1
     const val TIEMPO_ANIMACION = 300L
 }

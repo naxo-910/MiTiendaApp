@@ -8,7 +8,11 @@ data class Producto(
     val stock: Int,
     val categoria: String,
     val tipo: String,
-    val ciudad: String,
-    val pais: String,
-    val imagenUrl: String? = null
+    val ciudad: String = "",
+    val pais: String = "",
+    val imagenUrl: String? = null,
+    
+    // Campos adicionales para compatibilidad
+    val promedioCalificacion: Float = 4.5f,
+    val totalReviews: Int = 0
 )

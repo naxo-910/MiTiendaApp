@@ -26,21 +26,21 @@ import kotlinx.coroutines.flow.collectLatest
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PantallaRegistro(
-    vm: ViewModelUsuarios,
-    onRegistroExitoso: () -> Unit,
-    onVolver: () -> Unit
+fun PantallaCrearCuenta(
+    gestorUsuarios: ViewModelUsuarios,
+    alCrearCuentaExitoso: () -> Unit,
+    alVolver: () -> Unit
 ) {
-    val uiState by vm.uiStateRegistro.collectAsState()
+    val estadoRegistro by gestorUsuarios.estadoFormularioRegistro.collectAsState()
 
-    // Listener para el evento de navegación
+    // Escuchar eventos de navegación
     LaunchedEffect(key1 = Unit) {
-        vm.eventoNavegacion.collectLatest { evento ->
+        gestorUsuarios.notificacionNavegacion.collectLatest { evento ->
             when (evento) {
                 is EventoDeNavegacion.NavegarALogin -> {
-                    onRegistroExitoso()
+                    alCrearCuentaExitoso()
                 }
-                else -> { /* No hacer nada en otros eventos */ }
+                else -> { /* No realizar acción */ }
             }
         }
     }
@@ -60,7 +60,7 @@ fun PantallaRegistro(
     ) {
         // Botón de volver flotante
         IconButton(
-            onClick = onVolver,
+            onClick = alVolver,
             modifier = Modifier
                 .padding(16.dp)
                 .align(Alignment.TopStart)
@@ -148,11 +148,11 @@ fun PantallaRegistro(
 
                     // --- CAMPO NOMBRE ---
                     CampoTexto(
-                        valor = uiState.nombre,
-                        alCambiar = { vm.onRegistroEvent(EventoRegistro.OnNombreChange(it)) },
+                        valor = estadoRegistro.nombreCompleto,
+                        alCambiar = { gestorUsuarios.procesarEventoRegistroUsuario(EventoRegistro.OnNombreChange(it)) },
                         etiqueta = "Nombre Completo"
                     )
-                    val nombreError = uiState.nombreError
+                    val nombreError = estadoRegistro.mensajeErrorNombre
                     if (nombreError != null) {
                         Text(
                             text = nombreError, 
@@ -167,12 +167,12 @@ fun PantallaRegistro(
 
                     // --- CAMPO EMAIL ---
                     CampoTexto(
-                        valor = uiState.email,
-                        alCambiar = { vm.onRegistroEvent(EventoRegistro.OnEmailChange(it)) },
+                        valor = estadoRegistro.correoElectronico,
+                        alCambiar = { gestorUsuarios.procesarEventoRegistroUsuario(EventoRegistro.OnEmailChange(it)) },
                         etiqueta = "Email",
                         tipoTeclado = KeyboardType.Email
                     )
-                    val emailError = uiState.emailError
+                    val emailError = estadoRegistro.mensajeErrorCorreo
                     if (emailError != null) {
                         Text(
                             text = emailError, 
@@ -187,12 +187,12 @@ fun PantallaRegistro(
 
                     // --- CAMPO CONTRASEÑA ---
                     CampoTexto(
-                        valor = uiState.pass,
-                        alCambiar = { vm.onRegistroEvent(EventoRegistro.OnPassChange(it)) },
+                        valor = estadoRegistro.contrasenaUsuario,
+                        alCambiar = { gestorUsuarios.procesarEventoRegistroUsuario(EventoRegistro.OnPassChange(it)) },
                         etiqueta = "Contraseña (mín. 6 caracteres)",
                         tipoTeclado = KeyboardType.Password
                     )
-                    val passError = uiState.passError
+                    val passError = estadoRegistro.mensajeErrorContrasena
                     if (passError != null) {
                         Text(
                             text = passError, 
@@ -207,12 +207,12 @@ fun PantallaRegistro(
 
                     // --- CAMPO CONFIRMAR CONTRASEÑA ---
                     CampoTexto(
-                        valor = uiState.passConfirm,
-                        alCambiar = { vm.onRegistroEvent(EventoRegistro.OnPassConfirmChange(it)) },
+                        valor = estadoRegistro.confirmacionContrasena,
+                        alCambiar = { gestorUsuarios.procesarEventoRegistroUsuario(EventoRegistro.OnPassConfirmChange(it)) },
                         etiqueta = "Confirmar Contraseña",
                         tipoTeclado = KeyboardType.Password
                     )
-                    val passConfirmError = uiState.passConfirmError
+                    val passConfirmError = estadoRegistro.mensajeErrorConfirmacion
                     if (passConfirmError != null) {
                         Text(
                             text = passConfirmError, 
@@ -228,7 +228,7 @@ fun PantallaRegistro(
                     // --- BOTÓN REGISTRAR MEJORADO ---
                     Button(
                         onClick = {
-                            vm.onRegistroEvent(EventoRegistro.OnRegistroClicked)
+                            gestorUsuarios.procesarEventoRegistroUsuario(EventoRegistro.OnRegistroClicked)
                         },
                         modifier = Modifier
                             .fillMaxWidth()

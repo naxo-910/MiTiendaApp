@@ -1,0 +1,329 @@
+package com.example.evparcial2.domain.viewmodels
+
+import androidx.arch.core.executor.testing.InstantTaskExecutorRule
+import com.example.evparcial2.data.model.HostelDto
+import com.example.evparcial2.data.model.Producto
+import com.example.evparcial2.data.repository.ApiResult
+import com.example.evparcial2.data.repository.ExchangeRateRepository
+import com.example.evparcial2.data.repository.HostelRepository
+import com.google.common.truth.Truth.assertThat
+import io.mockk.coEvery
+import io.mockk.mockk
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.runTest
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+
+@ExperimentalCoroutinesApi
+class ViewModelProductosTest {
+
+    @get:Rule
+    val instantTaskExecutorRule = InstantTaskExecutorRule()
+
+    private lateinit var viewModel: ViewModelProductos
+    private lateinit var mockHostelRepository: HostelRepository
+    private lateinit var mockExchangeRateRepository: ExchangeRateRepository
+
+    private val hostelDtoDemo = HostelDto(
+        id = "1",
+        nombre = "Hostal Test",
+        descripcion = "Descripción de prueba",
+        precio = 50.0,
+        disponible = true,
+        tipoHabitacion = "individual",
+        ciudad = "Test City",
+        pais = "Test Country",
+        imagenUrl = "test.jpg",
+        rating = 4.5f,
+        totalReviews = 10
+    )
+
+    private val productoDemo = Producto(
+        id = 1L,
+        nombre = "Hostal Test",
+        descripcion = "Descripción de prueba",
+        precio = 50000.0,
+        stock = 10,
+        categoria = "hostal",
+        tipo = "habitacion"
+    )
+
+    @Before
+    fun setUp() {
+        mockHostelRepository = mockk()
+        mockExchangeRateRepository = mockk()
+        viewModel = ViewModelProductos(mockHostelRepository, mockExchangeRateRepository)
+    }
+
+    @Test
+    fun `estado inicial del ViewModel es correcto`() = runTest {
+        val listaAlojamientos = viewModel.listaAlojamientosCompleta.first()
+        val alojamientosApi = viewModel.alojamientosDesdeApi.first()
+        val cargando = viewModel.cargandoDatosRemotos.first()
+        val mensajeError = viewModel.mensajeErrorConexion.first()
+        val estadoFormulario = viewModel.estadoFormulario.first()
+
+        assertThat(listaAlojamientos).isEmpty()
+        assertThat(alojamientosApi).isEmpty()
+        assertThat(cargando).isFalse()
+        assertThat(mensajeError).isNull()
+        assertThat(estadoFormulario.idAlojamiento).isNull()
+        assertThat(estadoFormulario.nombreAlojamiento).isEmpty()
+    }
+
+    @Test
+    fun `actualizar campos formulario funciona correctamente`() = runTest {
+        val nombre = "Hotel Test"
+        val descripcion = "Descripción de prueba"
+        val precio = "75000"
+        val habitaciones = "5"
+        val categoria = "hotel"
+        val tipo = "suite"
+        val ciudad = "Bogotá"
+        val pais = "Colombia"
+
+        viewModel.actualizarCamposFormulario(
+            nombre, descripcion, precio, habitaciones, categoria, tipo, ciudad, pais
+        )
+
+        val estado = viewModel.estadoFormulario.first()
+        assertThat(estado.nombreAlojamiento).isEqualTo(nombre)
+        assertThat(estado.descripcionDetallada).isEqualTo(descripcion)
+        assertThat(estado.precioNochePesos).isEqualTo(precio)
+        assertThat(estado.habitacionesDisponibles).isEqualTo(habitaciones)
+        assertThat(estado.categoriaAlojamiento).isEqualTo(categoria)
+        assertThat(estado.tipoHabitacion).isEqualTo(tipo)
+        assertThat(estado.ciudadDestino).isEqualTo(ciudad)
+        assertThat(estado.paisDestino).isEqualTo(pais)
+    }
+
+    @Test
+    fun `crear nuevo alojamiento actualiza lista`() = runTest {
+        val nombre = "Nuevo Hotel"
+        val descripcion = "Hotel de prueba"
+        val precio = 50000.0
+        val stock = 10
+        val categoria = "hotel"
+        val tipo = "individual"
+        val ciudad = "Lima"
+        val pais = "Perú"
+
+        viewModel.crearNuevoAlojamiento(
+            nombre, descripcion, precio, stock, categoria, tipo, ciudad, pais, null
+        )
+
+        val listaAlojamientos = viewModel.listaAlojamientosCompleta.first()
+        assertThat(listaAlojamientos).hasSize(1)
+        
+        val alojamientoCreado = listaAlojamientos.first()
+        assertThat(alojamientoCreado.nombre).isEqualTo(nombre)
+        assertThat(alojamientoCreado.descripcion).isEqualTo(descripcion)
+        assertThat(alojamientoCreado.precio).isEqualTo(precio)
+        assertThat(alojamientoCreado.categoria).isEqualTo(categoria)
+    }
+
+    @Test
+    fun `preparar formulario para edicion carga datos correctamente`() = runTest {
+        // Primero crear un alojamiento
+        viewModel.crearNuevoAlojamiento(
+            "Hotel Test", "Descripción", 60000.0, 5, "hotel", "doble", "Medellín", "Colombia", null
+        )
+
+        val listaAlojamientos = viewModel.listaAlojamientosCompleta.first()
+        val idAlojamiento = listaAlojamientos.first().id
+
+        viewModel.prepararFormularioAlojamiento(idAlojamiento)
+
+        val estado = viewModel.estadoFormulario.first()
+        assertThat(estado.idAlojamiento).isEqualTo(idAlojamiento)
+        assertThat(estado.nombreAlojamiento).isEqualTo("Hotel Test")
+        assertThat(estado.descripcionDetallada).isEqualTo("Descripción")
+    }
+
+    @Test
+    fun `actualizar alojamiento existente modifica correctamente`() = runTest {
+        // Crear alojamiento inicial
+        viewModel.crearNuevoAlojamiento(
+            "Hotel Original", "Desc Original", 40000.0, 8, "hotel", "individual", "Cali", "Colombia", null
+        )
+
+        val listaOriginal = viewModel.listaAlojamientosCompleta.first()
+        val alojamientoOriginal = listaOriginal.first()
+
+        // Modificar el alojamiento
+        val alojamientoModificado = alojamientoOriginal.copy(
+            nombre = "Hotel Modificado",
+            precio = 50000.0
+        )
+
+        viewModel.actualizarAlojamientoExistente(alojamientoModificado)
+
+        val listaActualizada = viewModel.listaAlojamientosCompleta.first()
+        val alojamientoActualizado = listaActualizada.first()
+
+        assertThat(alojamientoActualizado.nombre).isEqualTo("Hotel Modificado")
+        assertThat(alojamientoActualizado.precio).isEqualTo(50000.0)
+    }
+
+    @Test
+    fun `remover alojamiento del catalogo funciona correctamente`() = runTest {
+        // Crear dos alojamientos
+        viewModel.crearNuevoAlojamiento(
+            "Hotel 1", "Desc 1", 40000.0, 5, "hotel", "individual", "Bogotá", "Colombia", null
+        )
+        viewModel.crearNuevoAlojamiento(
+            "Hotel 2", "Desc 2", 60000.0, 8, "hostal", "doble", "Medellín", "Colombia", null
+        )
+
+        val listaInicial = viewModel.listaAlojamientosCompleta.first()
+        assertThat(listaInicial).hasSize(2)
+
+        val alojamientoAEliminar = listaInicial.first()
+        viewModel.removerAlojamientoDelCatalogo(alojamientoAEliminar)
+
+        val listaFinal = viewModel.listaAlojamientosCompleta.first()
+        assertThat(listaFinal).hasSize(1)
+        assertThat(listaFinal.first().nombre).isEqualTo("Hotel 2")
+    }
+
+    @Test
+    fun `cargar alojamientos desde servicio remoto exitoso`() = runTest {
+        coEvery { mockHostelRepository.getAllHostels() } returns flowOf(ApiResult.Success(listOf(hostelDtoDemo)))
+
+        viewModel.cargarAlojamientosDesdeServicioRemoto()
+
+        val alojamientosApi = viewModel.alojamientosDesdeApi.first()
+        val cargando = viewModel.cargandoDatosRemotos.first()
+        val mensajeError = viewModel.mensajeErrorConexion.first()
+
+        assertThat(alojamientosApi).hasSize(1)
+        assertThat(alojamientosApi.first().nombre).isEqualTo("Hostal Test")
+        assertThat(cargando).isFalse()
+        assertThat(mensajeError).isNull()
+    }
+
+    @Test
+    fun `cargar alojamientos desde servicio remoto con error`() = runTest {
+        coEvery { mockHostelRepository.getAllHostels() } returns flowOf(ApiResult.Error("Error de red"))
+
+        viewModel.cargarAlojamientosDesdeServicioRemoto()
+
+        val alojamientosApi = viewModel.alojamientosDesdeApi.first()
+        val cargando = viewModel.cargandoDatosRemotos.first()
+        val mensajeError = viewModel.mensajeErrorConexion.first()
+
+        assertThat(alojamientosApi).isEmpty()
+        assertThat(cargando).isFalse()
+        assertThat(mensajeError).isEqualTo("Error de red")
+    }
+
+    @Test
+    fun `limpiar error de conexion funciona correctamente`() = runTest {
+        // Primero generar un error
+        coEvery { mockHostelRepository.getAllHostels() } returns flowOf(ApiResult.Error("Error de prueba"))
+        viewModel.cargarAlojamientosDesdeServicioRemoto()
+
+        var mensajeError = viewModel.mensajeErrorConexion.first()
+        assertThat(mensajeError).isEqualTo("Error de prueba")
+
+        // Limpiar el error
+        viewModel.limpiarErrorDeConexion()
+
+        mensajeError = viewModel.mensajeErrorConexion.first()
+        assertThat(mensajeError).isNull()
+    }
+
+    @Test
+    fun `EstadoFormularioAlojamiento tiene valores por defecto correctos`() {
+        val estado = EstadoFormularioAlojamiento()
+
+        assertThat(estado.idAlojamiento).isNull()
+        assertThat(estado.nombreAlojamiento).isEmpty()
+        assertThat(estado.descripcionDetallada).isEmpty()
+        assertThat(estado.precioNochePesos).isEmpty()
+        assertThat(estado.habitacionesDisponibles).isEmpty()
+        assertThat(estado.categoriaAlojamiento).isEmpty()
+        assertThat(estado.tipoHabitacion).isEmpty()
+        assertThat(estado.ciudadDestino).isEmpty()
+        assertThat(estado.paisDestino).isEmpty()
+        assertThat(estado.errorNombreAlojamiento).isNull()
+        assertThat(estado.errorPrecioNoche).isNull()
+        assertThat(estado.errorHabitacionesDisponibles).isNull()
+        assertThat(estado.errorCategoriaAlojamiento).isNull()
+        assertThat(estado.errorTipoHabitacion).isNull()
+        assertThat(estado.mensajeErrorGeneral).isNull()
+    }
+
+    @Test
+    fun `convertir precio a CLP funciona correctamente`() = runTest {
+        val precioUsd = 100.0
+        val precioConvertido = 90000.0
+
+        coEvery { mockExchangeRateRepository.convertUsdToClp(precioUsd) } returns flowOf(ApiResult.Success(precioConvertido))
+
+        var resultado = 0.0
+        viewModel.convertPriceToClp(precioUsd) { precio ->
+            resultado = precio
+        }
+
+        assertThat(resultado).isEqualTo(90000.0)
+    }
+
+    @Test
+    fun `guardar alojamiento en catalogo con validacion exitosa`() = runTest {
+        // Configurar formulario válido
+        viewModel.actualizarCamposFormulario(
+            "Hotel Válido", 
+            "Descripción válida", 
+            "50000", 
+            "5", 
+            "hotel", 
+            "doble", 
+            "Bogotá", 
+            "Colombia"
+        )
+
+        viewModel.guardarAlojamientoEnCatalogo()
+
+        val listaAlojamientos = viewModel.listaAlojamientosCompleta.first()
+        assertThat(listaAlojamientos).hasSize(1)
+        assertThat(listaAlojamientos.first().nombre).isEqualTo("Hotel Válido")
+    }
+
+    @Test
+    fun `searchHostelsFromApi con parametros funciona correctamente`() = runTest {
+        val pais = "Colombia"
+        val ciudad = "Bogotá"
+        val tipoHabitacion = "individual"
+        val precioMin = 30
+        val precioMax = 100
+
+        coEvery { 
+            mockHostelRepository.searchHostels(pais, ciudad, tipoHabitacion, precioMin, precioMax) 
+        } returns flowOf(ApiResult.Success(listOf(hostelDtoDemo)))
+
+        viewModel.searchHostelsFromApi(pais, ciudad, tipoHabitacion, precioMin, precioMax)
+
+        val alojamientosApi = viewModel.alojamientosDesdeApi.first()
+        val cargando = viewModel.cargandoDatosRemotos.first()
+
+        assertThat(alojamientosApi).hasSize(1)
+        assertThat(cargando).isFalse()
+    }
+
+    @Test
+    fun `actualizar datos desde servicio remoto funciona correctamente`() = runTest {
+        coEvery { mockHostelRepository.getAllHostels() } returns flowOf(ApiResult.Success(listOf(hostelDtoDemo)))
+
+        viewModel.actualizarDatosDesdeServicioRemoto()
+
+        val alojamientosApi = viewModel.alojamientosDesdeApi.first()
+        val cargando = viewModel.cargandoDatosRemotos.first()
+
+        assertThat(alojamientosApi).hasSize(1)
+        assertThat(cargando).isFalse()
+    }
+}

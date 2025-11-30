@@ -27,7 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.evparcial2.domain.viewmodels.CarritoViewModel
-import com.example.evparcial2.domain.viewmodels.ItemCarrito
+import com.example.evparcial2.data.model.ItemCarrito
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 

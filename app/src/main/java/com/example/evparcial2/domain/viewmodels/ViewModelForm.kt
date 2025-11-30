@@ -3,8 +3,11 @@ package com.example.evparcial2.domain.viewmodels
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import com.example.evparcial2.util.Validadores
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 
-class ViewModelForm : ViewModel() {
+@HiltViewModel
+class ViewModelForm @Inject constructor() : ViewModel() {
 
     private val _estadoForm = mutableStateOf(EstadoForm())
     val estadoForm = _estadoForm

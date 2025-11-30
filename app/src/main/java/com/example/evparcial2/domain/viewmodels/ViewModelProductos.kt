@@ -3,6 +3,11 @@ package com.example.evparcial2.domain.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.evparcial2.data.model.Producto
+import com.example.evparcial2.data.model.HostelDto
+import com.example.evparcial2.data.repository.ApiResult
+import com.example.evparcial2.data.repository.HostelRepository
+import com.example.evparcial2.data.repository.ExchangeRateRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -10,45 +15,64 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-// --- ¡NUEVO! Estado para el formulario ---
-data class UiStateFormProducto(
-    val id: Long? = null,
-    val nombre: String = "",
-    val descripcion: String = "",
-    val precio: String = "",
-    val stock: String = "",
-    val categoria: String = "",
-    val tipo: String = "",
-    val ciudad: String = "",
-    val pais: String = "",
+// --- ✨ Estado del formulario de alojamientos ---
+data class EstadoFormularioAlojamiento(
+    val idAlojamiento: Long? = null,
+    val nombreAlojamiento: String = "",
+    val descripcionDetallada: String = "",
+    val precioNochePesos: String = "",
+    val habitacionesDisponibles: String = "",
+    val categoriaAlojamiento: String = "",
+    val tipoHabitacion: String = "",
+    val ciudadDestino: String = "",
+    val paisDestino: String = "",
 
-    // Errores de validación
-    val nombreError: String? = null,
-    val precioError: String? = null,
-    val stockError: String? = null,
-    val categoriaError: String? = null,
-    val tipoError: String? = null,
-    val errorGeneral: String? = null
+    // 🚨 Mensajes de validación amigables
+    val errorNombreAlojamiento: String? = null,
+    val errorPrecioNoche: String? = null,
+    val errorHabitacionesDisponibles: String? = null,
+    val errorCategoriaAlojamiento: String? = null,
+    val errorTipoHabitacion: String? = null,
+    val mensajeErrorGeneral: String? = null
 )
 
-class ViewModelProductos : ViewModel() {
-    private val _productos = MutableStateFlow<List<Producto>>(emptyList())
-    val productos: StateFlow<List<Producto>> = _productos.asStateFlow()
+@HiltViewModel
+class ViewModelProductos @Inject constructor(
+    private val hostelRepository: HostelRepository,
+    private val exchangeRateRepository: ExchangeRateRepository
+) : ViewModel() {
+    
+    private val _listaAlojamientosCompleta = MutableStateFlow<List<Producto>>(emptyList())
+    val listaAlojamientosCompleta: StateFlow<List<Producto>> = _listaAlojamientosCompleta.asStateFlow()
 
-    // --- ¡NUEVO! Estados para el formulario ---
-    private val _uiStateForm = MutableStateFlow(UiStateFormProducto())
-    val uiStateForm = _uiStateForm.asStateFlow()
+    // --- 🌐 Estados para conexión con servicios remotos ---
+    private val _alojamientosDesdeApi = MutableStateFlow<List<HostelDto>>(emptyList())
+    val alojamientosDesdeApi: StateFlow<List<HostelDto>> = _alojamientosDesdeApi.asStateFlow()
+    
+    private val _cargandoDatosRemotos = MutableStateFlow(false)
+    val cargandoDatosRemotos: StateFlow<Boolean> = _cargandoDatosRemotos.asStateFlow()
+    
+    private val _mensajeErrorConexion = MutableStateFlow<String?>(null)
+    val mensajeErrorConexion: StateFlow<String?> = _mensajeErrorConexion.asStateFlow()
 
-    private val _isLoadingForm = MutableStateFlow(false)
-    val isLoadingForm = _isLoadingForm.asStateFlow()
+    // --- 📝 Estados para formulario de alojamiento ---
+    private val _estadoFormulario = MutableStateFlow(EstadoFormularioAlojamiento())
+    val estadoFormulario = _estadoFormulario.asStateFlow()
 
-    private val _eventoGuardadoExitoso = MutableSharedFlow<Unit>()
-    val eventoGuardadoExitoso = _eventoGuardadoExitoso.asSharedFlow()
+    private val _procesandoGuardado = MutableStateFlow(false)
+    val procesandoGuardado = _procesandoGuardado.asStateFlow()
+
+    private val _notificacionGuardadoExitoso = MutableSharedFlow<Unit>()
+    val notificacionGuardadoExitoso = _notificacionGuardadoExitoso.asSharedFlow()
 
     init {
-        // Tu lista de productos se queda intacta
-        _productos.value = listOf(
+        // 🚀 Cargar alojamientos remotos al inicializar la aplicación
+        cargarAlojamientosDesdeServicioRemoto()
+        
+        // 🏨 Catálogo inicial de alojamientos locales como respaldo
+        _listaAlojamientosCompleta.value = listOf(
             Producto(
                 id = 1L,
                 nombre = "Hostal Centro Histórico",
@@ -148,167 +172,313 @@ class ViewModelProductos : ViewModel() {
         )
     }
 
-    // --- ¡NUEVO! Carga el producto a editar en el formulario ---
-    fun cargarProducto(productoId: Long?) {
-        if (productoId == null) {
-            // Es un producto nuevo, reseteamos el form
-            _uiStateForm.value = UiStateFormProducto()
+    // --- 🏨 Preparar formulario para crear o editar alojamiento ---
+    fun prepararFormularioAlojamiento(idAlojamiento: Long?) {
+        if (idAlojamiento == null) {
+            // ✨ Nuevo alojamiento: limpiar formulario para empezar de cero
+            _estadoFormulario.value = EstadoFormularioAlojamiento()
         } else {
-            // Es un producto existente, lo buscamos en la lista
-            val producto = _productos.value.find { it.id == productoId }
-            if (producto != null) {
-                // Si lo encontramos, llenamos el formulario
-                _uiStateForm.value = UiStateFormProducto(
-                    id = producto.id,
-                    nombre = producto.nombre,
-                    descripcion = producto.descripcion,
-                    precio = producto.precio.toString(),
-                    stock = producto.stock.toString(),
-                    categoria = producto.categoria,
-                    tipo = producto.tipo,
-                    ciudad = producto.ciudad,
-                    pais = producto.pais
+            // 🔍 Editar alojamiento existente: buscar en nuestro catálogo
+            val alojamientoEncontrado = _listaAlojamientosCompleta.value.find { it.id == idAlojamiento }
+            if (alojamientoEncontrado != null) {
+                // 📝 Llenar formulario con datos del alojamiento encontrado
+                _estadoFormulario.value = EstadoFormularioAlojamiento(
+                    idAlojamiento = alojamientoEncontrado.id,
+                    nombreAlojamiento = alojamientoEncontrado.nombre,
+                    descripcionDetallada = alojamientoEncontrado.descripcion,
+                    precioNochePesos = alojamientoEncontrado.precio.toString(),
+                    habitacionesDisponibles = alojamientoEncontrado.stock.toString(),
+                    categoriaAlojamiento = alojamientoEncontrado.categoria,
+                    tipoHabitacion = alojamientoEncontrado.tipo,
+                    ciudadDestino = alojamientoEncontrado.ciudad,
+                    paisDestino = alojamientoEncontrado.pais
                 )
             }
         }
     }
 
-    // --- ¡NUEVO! Actualiza el estado del form mientras el usuario escribe ---
-    fun onFormChange(
-        nombre: String? = null,
-        descripcion: String? = null,
-        precio: String? = null,
-        stock: String? = null,
-        categoria: String? = null,
-        ciudad: String? = null,
-        pais: String? = null,
-        tipo: String? = null
+    // --- ✍️ Actualizar datos del formulario mientras el usuario escribe ---
+    fun actualizarCamposFormulario(
+        nombreAlojamiento: String? = null,
+        descripcionDetallada: String? = null,
+        precioNochePesos: String? = null,
+        habitacionesDisponibles: String? = null,
+        categoriaAlojamiento: String? = null,
+        ciudadDestino: String? = null,
+        paisDestino: String? = null,
+        tipoHabitacion: String? = null
     ) {
-        _uiStateForm.update { state ->
-            state.copy(
-                nombre = nombre ?: state.nombre,
-                descripcion = descripcion ?: state.descripcion,
-                precio = precio ?: state.precio,
-                stock = stock ?: state.stock,
-                categoria = categoria ?: state.categoria,
-                tipo = tipo ?: state.tipo,
-                ciudad = ciudad ?: state.ciudad,
-                pais = pais ?: state.pais,
-                // Reseteamos errores al escribir
-                nombreError = null,
-                precioError = null,
-                stockError = null,
-                categoriaError = null,
-                tipoError = null,
-                errorGeneral = null
+        _estadoFormulario.update { estadoActual ->
+            estadoActual.copy(
+                nombreAlojamiento = nombreAlojamiento ?: estadoActual.nombreAlojamiento,
+                descripcionDetallada = descripcionDetallada ?: estadoActual.descripcionDetallada,
+                precioNochePesos = precioNochePesos ?: estadoActual.precioNochePesos,
+                habitacionesDisponibles = habitacionesDisponibles ?: estadoActual.habitacionesDisponibles,
+                categoriaAlojamiento = categoriaAlojamiento ?: estadoActual.categoriaAlojamiento,
+                tipoHabitacion = tipoHabitacion ?: estadoActual.tipoHabitacion,
+                ciudadDestino = ciudadDestino ?: estadoActual.ciudadDestino,
+                paisDestino = paisDestino ?: estadoActual.paisDestino,
+                // 🧽 Limpiar mensajes de error al escribir
+                errorNombreAlojamiento = null,
+                errorPrecioNoche = null,
+                errorHabitacionesDisponibles = null,
+                errorCategoriaAlojamiento = null,
+                errorTipoHabitacion = null,
+                mensajeErrorGeneral = null
             )
         }
     }
 
-    // --- ¡NUEVO! Valida y decide si crear o actualizar ---
-    fun guardarProducto() {
-        _isLoadingForm.value = true
-        val state = _uiStateForm.value
+    // --- 💾 Validar y guardar alojamiento (crear nuevo o actualizar existente) ---
+    fun guardarAlojamientoEnCatalogo() {
+        _procesandoGuardado.value = true
+        val datosFormulario = _estadoFormulario.value
 
-        // --- Validación ---
-        val precioDouble = state.precio.toDoubleOrNull()
-        val stockInt = state.stock.toIntOrNull()
+        // --- 🔍 Validaciones con mensajes amigables ---
+        val precioValidado = datosFormulario.precioNochePesos.toDoubleOrNull()
+        val habitacionesValidadas = datosFormulario.habitacionesDisponibles.toIntOrNull()
 
-        if (state.nombre.isBlank() || state.categoria.isBlank() || state.tipo.isBlank()) {
-            _uiStateForm.update { it.copy(nombreError = "Campo obligatorio", categoriaError = "Campo obligatorio", tipoError = "Campo obligatorio") }
-            _isLoadingForm.value = false
+        if (datosFormulario.nombreAlojamiento.isBlank() || datosFormulario.categoriaAlojamiento.isBlank() || datosFormulario.tipoHabitacion.isBlank()) {
+            _estadoFormulario.update { 
+                it.copy(
+                    errorNombreAlojamiento = "🏨 Por favor ingresa un nombre para el alojamiento",
+                    errorCategoriaAlojamiento = "🏷️ Selecciona una categoría",
+                    errorTipoHabitacion = "🚪 Indica el tipo de habitación"
+                ) 
+            }
+            _procesandoGuardado.value = false
             return
         }
-        if (precioDouble == null) {
-            _uiStateForm.update { it.copy(precioError = "Precio inválido") }
-            _isLoadingForm.value = false
+        if (precioValidado == null || precioValidado <= 0) {
+            _estadoFormulario.update { it.copy(errorPrecioNoche = "💵 Ingresa un precio válido mayor a $0") }
+            _procesandoGuardado.value = false
             return
         }
-        if (stockInt == null) {
-            _uiStateForm.update { it.copy(stockError = "Stock inválido") }
-            _isLoadingForm.value = false
+        if (habitacionesValidadas == null || habitacionesValidadas < 0) {
+            _estadoFormulario.update { it.copy(errorHabitacionesDisponibles = "🚪 Ingresa un número válido de habitaciones") }
+            _procesandoGuardado.value = false
             return
         }
-        // --- Fin Validación ---
+        // --- ✅ Fin de validaciones ---
 
-        // Si la validación pasa, creamos o actualizamos
+        // Si todo está correcto, procedemos a guardar
         viewModelScope.launch {
             try {
-                if (state.id == null) {
-                    // --- CREAR ---
-                    agregarProducto(
-                        nombre = state.nombre,
-                        descripcion = state.descripcion,
-                        precio = precioDouble,
-                        stock = stockInt,
-                        categoria = state.categoria,
-                        tipo = state.tipo
+                if (datosFormulario.idAlojamiento == null) {
+                    // --- ✨ CREAR NUEVO ALOJAMIENTO ---
+                    crearNuevoAlojamiento(
+                        nombreAlojamiento = datosFormulario.nombreAlojamiento,
+                        descripcionDetallada = datosFormulario.descripcionDetallada,
+                        precioNochePesos = precioValidado,
+                        habitacionesDisponibles = habitacionesValidadas,
+                        categoriaAlojamiento = datosFormulario.categoriaAlojamiento,
+                        tipoHabitacion = datosFormulario.tipoHabitacion
                     )
                 } else {
-                    // --- ACTUALIZAR ---
-                    val productoActualizado = Producto(
-                        id = state.id,
-                        nombre = state.nombre,
-                        descripcion = state.descripcion,
-                        precio = precioDouble,
-                        stock = stockInt,
-                        categoria = state.categoria,
-                        tipo = state.tipo,
-                        ciudad = state.ciudad,
-                        pais = state.pais
+                    // --- 🔄 ACTUALIZAR ALOJAMIENTO EXISTENTE ---
+                    val alojamientoActualizado = Producto(
+                        id = datosFormulario.idAlojamiento,
+                        nombre = datosFormulario.nombreAlojamiento,
+                        descripcion = datosFormulario.descripcionDetallada,
+                        precio = precioValidado,
+                        stock = habitacionesValidadas,
+                        categoria = datosFormulario.categoriaAlojamiento,
+                        tipo = datosFormulario.tipoHabitacion,
+                        ciudad = datosFormulario.ciudadDestino,
+                        pais = datosFormulario.paisDestino
                     )
-                    actualizarProducto(productoActualizado)
+                    actualizarAlojamientoExistente(alojamientoActualizado)
                 }
 
-                _isLoadingForm.value = false
-                _eventoGuardadoExitoso.emit(Unit) // ¡Avisamos a la UI que navegue!
+                _procesandoGuardado.value = false
+                _notificacionGuardadoExitoso.emit(Unit) // 🎉 Notificar éxito a la interfaz
 
-            } catch (e: Exception) {
-                _isLoadingForm.value = false
-                _uiStateForm.update { it.copy(errorGeneral = e.message) }
+            } catch (excepcion: Exception) {
+                _procesandoGuardado.value = false
+                _estadoFormulario.update { 
+                    it.copy(mensajeErrorGeneral = "😞 Error inesperado: ${excepcion.message}") 
+                }
             }
         }
     }
 
-    // --- Tus funciones originales (modificadas para .update()) ---
-    fun agregarProducto(
-        nombre: String,
-        descripcion: String,
-        precio: Double,
-        stock: Int,
-        categoria: String,
-        tipo: String,
-        ciudad: String = "",
-        pais: String = "",
-        imagenUrl: String? = null
+    // --- 🏨 Funciones de gestión del catálogo de alojamientos ---
+    fun crearNuevoAlojamiento(
+        nombreAlojamiento: String,
+        descripcionDetallada: String,
+        precioNochePesos: Double,
+        habitacionesDisponibles: Int,
+        categoriaAlojamiento: String,
+        tipoHabitacion: String,
+        ciudadDestino: String = "",
+        paisDestino: String = "",
+        urlImagenAlojamiento: String? = null
     ) {
-        val nuevoId = System.currentTimeMillis()
-        val nuevoProducto = Producto(
-            id = nuevoId,
-            nombre = nombre,
-            descripcion = descripcion,
-            precio = precio,
-            stock = stock,
-            categoria = categoria,
-            tipo = tipo,
-            ciudad = ciudad,
-            pais = pais,
-            imagenUrl = imagenUrl
+        val idUnicoAlojamiento = System.currentTimeMillis()
+        val nuevoAlojamiento = Producto(
+            id = idUnicoAlojamiento,
+            nombre = nombreAlojamiento,
+            descripcion = descripcionDetallada,
+            precio = precioNochePesos,
+            stock = habitacionesDisponibles,
+            categoria = categoriaAlojamiento,
+            tipo = tipoHabitacion,
+            ciudad = ciudadDestino,
+            pais = paisDestino,
+            imagenUrl = urlImagenAlojamiento
         )
-        _productos.update { listaActual -> listaActual + nuevoProducto }
+        _listaAlojamientosCompleta.update { catalogoActual -> catalogoActual + nuevoAlojamiento }
     }
 
-    fun actualizarProducto(producto: Producto) {
-        _productos.update { listaActual ->
-            listaActual.map {
-                if (it.id == producto.id) producto else it
+    fun actualizarAlojamientoExistente(alojamientoModificado: Producto) {
+        _listaAlojamientosCompleta.update { catalogoActual ->
+            catalogoActual.map {
+                if (it.id == alojamientoModificado.id) alojamientoModificado else it
             }
         }
     }
 
-    fun eliminarProducto(producto: Producto) {
-        _productos.update { listaActual ->
-            listaActual.filter { it.id != producto.id }
+    fun removerAlojamientoDelCatalogo(alojamientoAEliminar: Producto) {
+        _listaAlojamientosCompleta.update { catalogoActual ->
+            catalogoActual.filter { it.id != alojamientoAEliminar.id }
+        }
+    }
+
+    // --- 🌐 FUNCIONES PARA SERVICIOS REMOTOS DE ALOJAMIENTOS ---
+
+    /**
+     * 🚀 Cargar todo el catálogo de alojamientos desde el servicio remoto
+     */
+    fun cargarAlojamientosDesdeServicioRemoto() {
+        viewModelScope.launch {
+            hostelRepository.getAllHostels().collect { resultado ->
+                when (resultado) {
+                    is ApiResult.Loading -> {
+                        _cargandoDatosRemotos.value = true
+                        _mensajeErrorConexion.value = null
+                    }
+                    is ApiResult.Success -> {
+                        _cargandoDatosRemotos.value = false
+                        _alojamientosDesdeApi.value = resultado.data
+                        _mensajeErrorConexion.value = null
+                        
+                        // 🔄 Transformar datos remotos a formato local
+                        val alojamientosConvertidos = resultado.data.map { alojamientoRemoto ->
+                            Producto(
+                                id = alojamientoRemoto.id.toLongOrNull() ?: System.currentTimeMillis(),
+                                nombre = alojamientoRemoto.nombre,
+                                descripcion = alojamientoRemoto.descripcion,
+                                precio = alojamientoRemoto.precio,
+                                stock = if (alojamientoRemoto.disponible) 10 else 0,
+                                categoria = alojamientoRemoto.tipoHabitacion,
+                                tipo = alojamientoRemoto.tipoHabitacion.lowercase(),
+                                ciudad = alojamientoRemoto.ciudad,
+                                pais = alojamientoRemoto.pais,
+                                imagenUrl = alojamientoRemoto.imagenUrl,
+                                promedioCalificacion = alojamientoRemoto.rating,
+                                totalReviews = alojamientoRemoto.totalReviews
+                            )
+                        }
+                        
+                        // 🏨 Usar datos remotos si están disponibles, sino mantener locales
+                        if (alojamientosConvertidos.isNotEmpty()) {
+                            _listaAlojamientosCompleta.value = alojamientosConvertidos
+                        }
+                    }
+                    is ApiResult.Error -> {
+                        _cargandoDatosRemotos.value = false
+                        _mensajeErrorConexion.value = resultado.message
+                        // 🚫 En caso de error, mantener datos locales como respaldo
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Busca hostels con filtros específicos
+     */
+    fun searchHostelsFromApi(
+        pais: String? = null,
+        ciudad: String? = null,
+        tipoHabitacion: String? = null,
+        precioMin: Int? = null,
+        precioMax: Int? = null
+    ) {
+        viewModelScope.launch {
+            hostelRepository.searchHostels(pais, ciudad, tipoHabitacion, precioMin, precioMax)
+                .collect { result ->
+                    when (result) {
+                        is ApiResult.Loading -> {
+                            _cargandoDatosRemotos.value = true
+                            _mensajeErrorConexion.value = null
+                        }
+                        is ApiResult.Success -> {
+                            _cargandoDatosRemotos.value = false
+                            _alojamientosDesdeApi.value = result.data
+                            _mensajeErrorConexion.value = null
+                            
+                            // Actualizar productos con resultados filtrados
+                            val productosFiltrados = result.data.map { hostel ->
+                                Producto(
+                                    id = hostel.id.toLongOrNull() ?: System.currentTimeMillis(),
+                                    nombre = hostel.nombre,
+                                    descripcion = hostel.descripcion,
+                                    precio = hostel.precio,
+                                    stock = if (hostel.disponible) 10 else 0,
+                                    categoria = hostel.tipoHabitacion,
+                                    tipo = hostel.tipoHabitacion.lowercase(),
+                                    ciudad = hostel.ciudad,
+                                    pais = hostel.pais,
+                                    imagenUrl = hostel.imagenUrl,
+                                    promedioCalificacion = hostel.rating,
+                                    totalReviews = hostel.totalReviews
+                                )
+                            }
+                            _listaAlojamientosCompleta.value = productosFiltrados
+                        }
+                        is ApiResult.Error -> {
+                            _cargandoDatosRemotos.value = false
+                            _mensajeErrorConexion.value = result.message
+                        }
+                    }
+                }
+        }
+    }
+
+    /**
+     * Refresca los datos desde el API
+     */
+    fun actualizarDatosDesdeServicioRemoto() {
+        cargarAlojamientosDesdeServicioRemoto()
+    }
+
+    /**
+     * 🧹 Limpiar mensaje de error de conexión
+     */
+    fun limpiarErrorDeConexion() {
+        _mensajeErrorConexion.value = null
+    }
+
+    /**
+     * Convierte precio USD a CLP usando API de tipos de cambio
+     */
+    fun convertPriceToClp(priceUsd: Double, onResult: (Double) -> Unit) {
+        viewModelScope.launch {
+            exchangeRateRepository.convertUsdToClp(priceUsd).collect { result ->
+                when (result) {
+                    is ApiResult.Success -> {
+                        onResult(result.data)
+                    }
+                    is ApiResult.Error -> {
+                        // En caso de error, usar tasa fija aproximada
+                        onResult(priceUsd * 900) // Tasa aproximada USD->CLP
+                    }
+                    is ApiResult.Loading -> {
+                        // No hacer nada mientras carga
+                    }
+                }
+            }
         }
     }
 }

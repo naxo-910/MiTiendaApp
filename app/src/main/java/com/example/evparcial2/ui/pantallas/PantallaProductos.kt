@@ -26,48 +26,47 @@ import com.example.evparcial2.ui.components.common.PlantillaProducto
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PantallaProductos(
-    vm: ViewModelProductos,
-    carritoViewModel: CarritoViewModel,
+fun PantallaAlojamientos(
+    gestorProductos: ViewModelProductos,
+    gestorCarrito: CarritoViewModel,
     esAdmin: Boolean,
     usuario: com.example.evparcial2.data.model.Usuario? = null,
     onAgregarProducto: () -> Unit,
     onEditarProducto: (Producto) -> Unit,
     onVerDetalle: (Producto) -> Unit,
-    onVolver: () -> Unit,
     onIrACarrito: () -> Unit,
     onIrALogin: () -> Unit = {},
     onIrAInicio: () -> Unit = {}
 ) {
-    val productos by vm.productos.collectAsState()
-    val itemsCarrito by carritoViewModel.items.collectAsState()
-    var filtroSeleccionado by remember { mutableStateOf("Todos") }
-    var filtroCiudad by remember { mutableStateOf("Todas") }
-    var filtroPais by remember { mutableStateOf("Todos") }
+    val productos by gestorProductos.listaAlojamientosCompleta.collectAsState()
+    val itemsCarrito by gestorCarrito.items.collectAsState()
+    var tipoHabitacionSeleccionada by remember { mutableStateOf("Todas las habitaciones") }
+    var ciudadSeleccionada by remember { mutableStateOf("Todas las ciudades") }
+    var paisSeleccionado by remember { mutableStateOf("Todos los países") }
     
-    // Filtrar productos según tipo de habitación, ciudad y país
-    val productosFiltrados = remember(productos, filtroSeleccionado, filtroCiudad, filtroPais) {
-        productos.filter { producto ->
-            val cumpleTipo = when (filtroSeleccionado) {
-                "Todos" -> true
-                "Privada" -> producto.tipo == "privada" || producto.tipo == "suite"
-                "Compartida" -> producto.tipo == "compartida" || producto.tipo == "litera"
-                "Familiar" -> producto.tipo == "familiar" || producto.tipo == "doble"
+    // Filtrar alojamientos según criterios seleccionados por el huésped
+    val alojamientosFiltrados = remember(productos, tipoHabitacionSeleccionada, ciudadSeleccionada, paisSeleccionado) {
+        productos.filter { alojamiento ->
+            val cumpleRequisitosTipoHabitacion = when (tipoHabitacionSeleccionada) {
+                "Todas las habitaciones" -> true
+                "Habitación Privada" -> alojamiento.tipo == "privada" || alojamiento.tipo == "suite"
+                "Habitación Compartida" -> alojamiento.tipo == "compartida" || alojamiento.tipo == "litera"
+                "Habitación Familiar" -> alojamiento.tipo == "familiar" || alojamiento.tipo == "doble"
                 else -> true
             }
-            val cumpleCiudad = filtroCiudad == "Todas" || producto.ciudad == filtroCiudad
-            val cumplePais = filtroPais == "Todos" || producto.pais == filtroPais
+            val cumpleRequisitosCiudad = ciudadSeleccionada == "Todas las ciudades" || alojamiento.ciudad == ciudadSeleccionada
+            val cumpleRequisitosPais = paisSeleccionado == "Todos los países" || alojamiento.pais == paisSeleccionado
             
-            cumpleTipo && cumpleCiudad && cumplePais
+            cumpleRequisitosTipoHabitacion && cumpleRequisitosCiudad && cumpleRequisitosPais
         }
     }
     
-    // Obtener listas únicas de ciudades y países
-    val ciudadesDisponibles = remember(productos) {
-        listOf("Todas") + productos.map { it.ciudad }.distinct().sorted()
+    // Obtener listas únicas de destinos disponibles para el huésped
+    val ciudadesDisponiblesParaReserva = remember(productos) {
+        listOf("Todas las ciudades") + productos.map { it.ciudad }.distinct().sorted()
     }
-    val paisesDisponibles = remember(productos) {
-        listOf("Todos") + productos.map { it.pais }.distinct().sorted()
+    val paisesDisponiblesParaReserva = remember(productos) {
+        listOf("Todos los países") + productos.map { it.pais }.distinct().sorted()
     }
 
     Scaffold(
@@ -98,15 +97,15 @@ fun PantallaProductos(
                 },
                 actions = {
                     if (usuario != null) {
-                        // Mostrar nombre del usuario
+                        // Saludo personalizado al huésped
                         Text(
-                            text = "Hola, ${usuario.nombre}",
+                            text = "😊 Bienvenido, ${usuario.nombre}",
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.padding(end = 8.dp)
                         )
                         
                         if (!esAdmin) {
-                            // Botón de carrito con CONTADOR
+                            // Carrito de reservas del huésped con contador de alojamientos
                             IconButton(onClick = onIrACarrito) {
                                 BadgedBox(
                                     badge = {
@@ -119,19 +118,19 @@ fun PantallaProductos(
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.ShoppingCart,
-                                        contentDescription = "Ver carrito",
+                                        contentDescription = "Ver mis reservas pendientes",
                                         tint = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
                             }
                         }
                     } else {
-                        // Botón de login prominente
+                        // Invitación a registrarse para hacer reservas
                         Button(
                             onClick = onIrALogin,
                             modifier = Modifier.padding(end = 8.dp)
                         ) {
-                            Text("Iniciar Sesión")
+                            Text("🔑 Iniciar Sesión")
                         }
                     }
                 }
@@ -140,7 +139,7 @@ fun PantallaProductos(
         floatingActionButton = {
             if (esAdmin) {
                 FloatingActionButton(onClick = onAgregarProducto) {
-                    Icon(Icons.Default.Add, contentDescription = "Nuevo Alojamiento")
+                    Icon(Icons.Default.Add, contentDescription = "🏨 Agregar Nuevo Alojamiento")
                 }
             }
         }
@@ -153,11 +152,21 @@ fun PantallaProductos(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Text("No hay alojamientos disponibles")
+                Text(
+                    text = "🏨 Aún no hay alojamientos disponibles",
+                    style = MaterialTheme.typography.headlineSmall,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = "Próximamente tendremos opciones de hospedaje para ti",
+                    style = MaterialTheme.typography.bodyLarge,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
                 if (esAdmin) {
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(24.dp))
                     Button(onClick = onAgregarProducto) {
-                        Text("Agregar Primer Alojamiento")
+                        Text("✨ Agregar Primer Alojamiento")
                     }
                 }
             }
@@ -168,7 +177,7 @@ fun PantallaProductos(
                     .fillMaxSize(),
                 contentPadding = PaddingValues(0.dp)
             ) {
-                // Header con gradiente
+                // Encabezado inspirador con gradiente
                 item {
                     Box(
                         modifier = Modifier
@@ -185,7 +194,7 @@ fun PantallaProductos(
                     ) {
                         Column {
                             Text(
-                                text = if (esAdmin) "🏨 Gestión de Alojamientos" else "🏨 Explora Alojamientos",
+                                text = if (esAdmin) "🏨 Gestión de Alojamientos" else "🌍 Descubre Alojamientos Únicos",
                                 style = MaterialTheme.typography.headlineMedium.copy(
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
@@ -194,9 +203,9 @@ fun PantallaProductos(
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = if (esAdmin) 
-                                    "Administra tu inventario de alojamientos"
+                                    "Administra tu inventario de alojamientos con facilidad"
                                 else 
-                                    "Encuentra tu estancia perfecta",
+                                    "Tu próxima aventura comienza con la elección perfecta de hospedaje",
                                 style = MaterialTheme.typography.bodyLarge.copy(
                                     color = Color.White.copy(alpha = 0.9f)
                                 )
@@ -205,15 +214,15 @@ fun PantallaProductos(
                     }
                 }
                 
-                // Filtros
+                // Filtros personalizados para encontrar el alojamiento ideal
                 if (!esAdmin) {
                     item {
                         Column(
                             modifier = Modifier.padding(16.dp)
                         ) {
-                            // Filtros por tipo
+                            // Filtro por tipo de habitación preferida
                             Text(
-                                text = "Tipo de Habitación",
+                                text = "🚪 Tipo de Habitación Deseada",
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.SemiBold
                                 ),
@@ -224,12 +233,17 @@ fun PantallaProductos(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier.padding(bottom = 16.dp)
                             ) {
-                                val filtros = listOf("Todos", "Privada", "Compartida", "Familiar")
-                                items(filtros) { filtro ->
+                                val tiposDeHabitacionDisponibles = listOf(
+                                    "Todas las habitaciones", 
+                                    "Habitación Privada", 
+                                    "Habitación Compartida", 
+                                    "Habitación Familiar"
+                                )
+                                items(tiposDeHabitacionDisponibles) { tipoHabitacion ->
                                     FilterChip(
-                                        onClick = { filtroSeleccionado = filtro },
-                                        label = { Text(filtro) },
-                                        selected = filtroSeleccionado == filtro,
+                                        onClick = { tipoHabitacionSeleccionada = tipoHabitacion },
+                                        label = { Text(tipoHabitacion) },
+                                        selected = tipoHabitacionSeleccionada == tipoHabitacion,
                                         colors = FilterChipDefaults.filterChipColors(
                                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                                             selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -238,9 +252,9 @@ fun PantallaProductos(
                                 }
                             }
                             
-                            // Filtros por país
+                            // Filtro por país de destino
                             Text(
-                                text = "País",
+                                text = "🌍 País de Destino",
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.SemiBold
                                 ),
@@ -251,15 +265,15 @@ fun PantallaProductos(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier.padding(bottom = 16.dp)
                             ) {
-                                items(paisesDisponibles) { pais ->
+                                items(paisesDisponiblesParaReserva) { paisDestino ->
                                     FilterChip(
                                         onClick = { 
-                                            filtroPais = pais
-                                            // Reset ciudad filter when changing country
-                                            if (pais != "Todos") filtroCiudad = "Todas"
+                                            paisSeleccionado = paisDestino
+                                            // Resetear filtro de ciudad al cambiar de país
+                                            if (paisDestino != "Todos los países") ciudadSeleccionada = "Todas las ciudades"
                                         },
-                                        label = { Text(pais) },
-                                        selected = filtroPais == pais,
+                                        label = { Text(paisDestino) },
+                                        selected = paisSeleccionado == paisDestino,
                                         colors = FilterChipDefaults.filterChipColors(
                                             selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
                                             selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
@@ -268,9 +282,9 @@ fun PantallaProductos(
                                 }
                             }
                             
-                            // Filtros por ciudad
+                            // Filtro por ciudad específica
                             Text(
-                                text = "Ciudad",
+                                text = "🏙️ Ciudad de Preferencia",
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.SemiBold
                                 ),
@@ -280,18 +294,18 @@ fun PantallaProductos(
                             LazyRow(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                val ciudadesFiltradas = if (filtroPais == "Todos") {
-                                    ciudadesDisponibles
+                                val ciudadesFiltradasPorPais = if (paisSeleccionado == "Todos los países") {
+                                    ciudadesDisponiblesParaReserva
                                 } else {
-                                    listOf("Todas") + productos.filter { it.pais == filtroPais }
+                                    listOf("Todas las ciudades") + productos.filter { it.pais == paisSeleccionado }
                                         .map { it.ciudad }.distinct().sorted()
                                 }
                                 
-                                items(ciudadesFiltradas) { ciudad ->
+                                items(ciudadesFiltradasPorPais) { ciudadDestino ->
                                     FilterChip(
-                                        onClick = { filtroCiudad = ciudad },
-                                        label = { Text(ciudad) },
-                                        selected = filtroCiudad == ciudad,
+                                        onClick = { ciudadSeleccionada = ciudadDestino },
+                                        label = { Text(ciudadDestino) },
+                                        selected = ciudadSeleccionada == ciudadDestino,
                                         colors = FilterChipDefaults.filterChipColors(
                                             selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer,
                                             selectedLabelColor = MaterialTheme.colorScheme.onTertiaryContainer
@@ -303,7 +317,7 @@ fun PantallaProductos(
                     }
                 }
                 
-                // Contador de resultados
+                // Resumen de resultados de búsqueda
                 item {
                     Row(
                         modifier = Modifier
@@ -313,7 +327,7 @@ fun PantallaProductos(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "${productosFiltrados.size} alojamientos disponibles",
+                            text = "🏨 ${alojamientosFiltrados.size} alojamientos encontrados para tu búsqueda",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -330,7 +344,7 @@ fun PantallaProductos(
                 
                 // Lista de productos
                 items(
-                    items = productosFiltrados,
+                    items = alojamientosFiltrados,
                     key = { producto -> producto.id }
                 ) { producto ->
                     PlantillaProducto(
@@ -339,7 +353,7 @@ fun PantallaProductos(
                         onVerDetalle = { onVerDetalle(producto) },
                         onAgregarCarrito = {
                             if (usuario != null && !esAdmin) {
-                                carritoViewModel.agregarProducto(producto)
+                                gestorCarrito.agregarProducto(producto)
                             } else if (usuario == null) {
                                 onIrALogin()
                             }
@@ -348,7 +362,7 @@ fun PantallaProductos(
                             onEditarProducto(producto)
                         },
                         onEliminarProducto = {
-                            vm.eliminarProducto(producto)
+                            gestorProductos.removerAlojamientoDelCatalogo(producto)
                         },
                         usuarioLogueado = usuario != null,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)

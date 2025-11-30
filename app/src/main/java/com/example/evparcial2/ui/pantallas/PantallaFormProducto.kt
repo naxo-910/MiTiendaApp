@@ -18,34 +18,36 @@ import kotlinx.coroutines.flow.collectLatest // <-- ¡IMPORT AÑADIDO!
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PantallaFormProducto(
-    vm: ViewModelProductos,
-    productoId: Long?,
-    onVolver: () -> Unit,
-    onGuardar: () -> Unit
+fun PantallaFormularioAlojamiento(
+    gestorAlojamientos: ViewModelProductos,
+    idAlojamientoAEditar: Long?,
+    alVolver: () -> Unit,
+    alGuardarExitosamente: () -> Unit
 ) {
-    val uiState by vm.uiStateForm.collectAsState()
-    val isLoading by vm.isLoadingForm.collectAsState()
+    val estadoFormulario by gestorAlojamientos.estadoFormulario.collectAsState()
+    val procesandoGuardado by gestorAlojamientos.procesandoGuardado.collectAsState()
 
-    // Carga el producto si estamos editando
-    LaunchedEffect(productoId) {
-        vm.cargarProducto(productoId)
+    // 🏨 Preparar formulario al cargar (crear nuevo o editar existente)
+    LaunchedEffect(idAlojamientoAEditar) {
+        gestorAlojamientos.prepararFormularioAlojamiento(idAlojamientoAEditar)
     }
 
-    // Observa los eventos de guardado
+    // 🎉 Escuchar notificación de guardado exitoso
     LaunchedEffect(key1 = Unit) {
-        vm.eventoGuardadoExitoso.collectLatest { // <-- Esto ya no dará error
-            onGuardar()
+        gestorAlojamientos.notificacionGuardadoExitoso.collectLatest {
+            alGuardarExitosamente()
         }
     }
 
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(if (productoId == null) "Nuevo Producto" else "Editar Producto") },
+                title = { 
+                    Text(if (idAlojamientoAEditar == null) "🏨 Nuevo Alojamiento" else "✏️ Editar Alojamiento") 
+                },
                 navigationIcon = {
-                    IconButton(onClick = onVolver) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
+                    IconButton(onClick = alVolver) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "🔙 Regresar")
                     }
                 }
             )
@@ -59,93 +61,93 @@ fun PantallaFormProducto(
                 .padding(16.dp)
         ) {
             // ... (Todos tus Campos de Texto se quedan igual) ...
-            // nombre
+            // 🏨 Nombre del alojamiento
             CampoTexto(
-                valor = uiState.nombre,
-                alCambiar = { vm.onFormChange(nombre = it) },
-                etiqueta = "Nombre del producto *",
-                hayError = uiState.nombreError != null,
-                mensajeError = uiState.nombreError
+                valor = estadoFormulario.nombreAlojamiento,
+                alCambiar = { gestorAlojamientos.actualizarCamposFormulario(nombreAlojamiento = it) },
+                etiqueta = "🏨 Nombre del alojamiento *",
+                hayError = estadoFormulario.errorNombreAlojamiento != null,
+                mensajeError = estadoFormulario.errorNombreAlojamiento
             )
             Spacer(modifier = Modifier.height(16.dp))
 
-            // descripcion
+            // 📝 Descripción detallada
             CampoTexto(
-                valor = uiState.descripcion,
-                alCambiar = { vm.onFormChange(descripcion = it) },
-                etiqueta = "Descripción",
+                valor = estadoFormulario.descripcionDetallada,
+                alCambiar = { gestorAlojamientos.actualizarCamposFormulario(descripcionDetallada = it) },
+                etiqueta = "📝 Descripción del alojamiento",
                 modificador = Modifier.height(100.dp)
             )
             Spacer(modifier = Modifier.height(16.dp))
 
-            // precio
+            // 💵 Precio por noche
             CampoTexto(
-                valor = uiState.precio,
-                alCambiar = { vm.onFormChange(precio = it) },
-                etiqueta = "Precio *",
+                valor = estadoFormulario.precioNochePesos,
+                alCambiar = { gestorAlojamientos.actualizarCamposFormulario(precioNochePesos = it) },
+                etiqueta = "💵 Precio por noche (CLP) *",
                 tipoTeclado = KeyboardType.Decimal,
-                hayError = uiState.precioError != null,
-                mensajeError = uiState.precioError
+                hayError = estadoFormulario.errorPrecioNoche != null,
+                mensajeError = estadoFormulario.errorPrecioNoche
             )
             Spacer(modifier = Modifier.height(16.dp))
 
-            // stock
+            // 🚪 Habitaciones disponibles
             CampoTexto(
-                valor = uiState.stock,
-                alCambiar = { vm.onFormChange(stock = it) },
-                etiqueta = "Stock disponible *",
+                valor = estadoFormulario.habitacionesDisponibles,
+                alCambiar = { gestorAlojamientos.actualizarCamposFormulario(habitacionesDisponibles = it) },
+                etiqueta = "🚪 Habitaciones disponibles *",
                 tipoTeclado = KeyboardType.Number,
-                hayError = uiState.stockError != null,
-                mensajeError = uiState.stockError
+                hayError = estadoFormulario.errorHabitacionesDisponibles != null,
+                mensajeError = estadoFormulario.errorHabitacionesDisponibles
             )
             Spacer(modifier = Modifier.height(16.dp))
 
-            // categoria
+            // 🏷️ Categoría del alojamiento
             CampoTexto(
-                valor = uiState.categoria,
-                alCambiar = { vm.onFormChange(categoria = it) },
-                etiqueta = "Categoría (ej: Venta, Arriendo) *",
-                hayError = uiState.categoriaError != null,
-                mensajeError = uiState.categoriaError
+                valor = estadoFormulario.categoriaAlojamiento,
+                alCambiar = { gestorAlojamientos.actualizarCamposFormulario(categoriaAlojamiento = it) },
+                etiqueta = "🏷️ Categoría (Económico, Premium, Lujo) *",
+                hayError = estadoFormulario.errorCategoriaAlojamiento != null,
+                mensajeError = estadoFormulario.errorCategoriaAlojamiento
             )
             Spacer(modifier = Modifier.height(16.dp))
 
-            // tipo
+            // 🚪 Tipo de habitación
             CampoTexto(
-                valor = uiState.tipo,
-                alCambiar = { vm.onFormChange(tipo = it) },
-                etiqueta = "Tipo (ej: casa, depto, oficina) *",
-                hayError = uiState.tipoError != null,
-                mensajeError = uiState.tipoError
+                valor = estadoFormulario.tipoHabitacion,
+                alCambiar = { gestorAlojamientos.actualizarCamposFormulario(tipoHabitacion = it) },
+                etiqueta = "🚪 Tipo (privada, compartida, familiar) *",
+                hayError = estadoFormulario.errorTipoHabitacion != null,
+                mensajeError = estadoFormulario.errorTipoHabitacion
             )
             Spacer(modifier = Modifier.height(24.dp))
 
-            // --- Error general ---
-            if (uiState.errorGeneral != null) {
+            // 🚨 Mensaje de error general
+            if (estadoFormulario.mensajeErrorGeneral != null) {
                 Text(
-                    text = uiState.errorGeneral!!,
+                    text = estadoFormulario.mensajeErrorGeneral!!,
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
             }
 
-            // --- ¡¡ARREGLO!! Reemplazamos BotonCargando por un Button normal ---
+            // 💾 Botón de guardado inteligente
             Button(
                 onClick = {
-                    vm.guardarProducto()
+                    gestorAlojamientos.guardarAlojamientoEnCatalogo()
                 },
-                enabled = !isLoading, // El botón se deshabilita mientras carga
+                enabled = !procesandoGuardado, 
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp)
             ) {
-                if (isLoading) {
+                if (procesandoGuardado) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(24.dp),
                         color = MaterialTheme.colorScheme.onPrimary
                     )
                 } else {
-                    Text(if (productoId == null) "Crear Producto" else "Actualizar Producto")
+                    Text(if (idAlojamientoAEditar == null) "✨ Crear Alojamiento" else "🔄 Actualizar Alojamiento")
                 }
             }
         }
